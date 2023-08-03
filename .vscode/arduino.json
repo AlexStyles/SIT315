@@ -1,0 +1,6 @@
+{
+    "port": "/dev/ttyS0",
+    "board": "arduino:avr:uno",
+    "sketch": "LCD_Screen/LCD_NoVector.ino",
+    "programmer": "arduino:avrispmkii"
+}
