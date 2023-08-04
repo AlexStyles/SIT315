@@ -2,14 +2,14 @@
 
 // https://www.arduino.cc/reference/en/language/functions/external-interrupts/attachinterrupt/
 
-static constexpr uint8_t buttonPin = 2;
+static constexpr uint8_t buttonPin = 3;
 static constexpr uint16_t debounceMs = 1000;
 
 static volatile uint8_t ledState = 0;
 static volatile uint8_t buttonState = 0;
 static uint32_t lastButtonPressMs = 0;
 
-static constexpr uint8_t tiltPin = 3;
+static constexpr uint8_t tiltPin = 2;
 static volatile uint8_t tiltDetected = 0;
 static constexpr uint8_t piezoPin = 7;
 
@@ -25,10 +25,11 @@ void changeTiltState(void) {
 void setup()
 {
   noInterrupts();
-  attachInterrupt(digitalPinToInterrupt(tiltPin), changeTiltState, RISING);
+  attachInterrupt(digitalPinToInterrupt(tiltPin), changeTiltState, CHANGE);
   attachInterrupt(digitalPinToInterrupt(buttonPin), changeButtonState, RISING);
   pinMode(buttonPin, INPUT_PULLUP);
   pinMode(tiltPin, INPUT);
+  pinMode(piezoPin, OUTPUT);
   pinMode(LED_BUILTIN, OUTPUT);
   Serial.begin(9600);
   interrupts();
@@ -59,8 +60,7 @@ void HandleButtonPress() {
 void HandleTiltDetected() {
   if (tiltDetected) {
     Serial.println("Tilt Detected!");
-    tone(piezoPin, 500, 2);
+    tone(piezoPin, 494, 5);
     tiltDetected = 0;
-    noTone(piezoPin);
   }
 }
