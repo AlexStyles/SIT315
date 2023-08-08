@@ -3,12 +3,36 @@
 // https://www.arduino.cc/reference/en/language/functions/external-interrupts/attachinterrupt/
 // https://www.electrosoftcloud.com/en/pcint-interrupts-on-arduino/
 
-static constexpr uint8_t buttonPin = 3;
-static constexpr uint16_t debounceMs = 100;
+struct RGB {
+  uint8_t red;
+  uint8_t green;
+  uint8_t blue;
+  RGB() = default;
+  RGB(uint8_t inRed, uint8_t inGreen, uint8_t inBlue) : red(inRed), green(inGreen), blue(inBlue) {}
+};
 
-static volatile uint8_t ledState = 0;
-static volatile uint8_t buttonState = 0;
-static uint32_t lastButtonPressMs = 0;
+static constexpr uint8_t pirSensorPin = 3;
+static volatile uint8_t motionDetected = 0;
+static constexpr uint16_t motionTimeoutMs = 2000;
+static uint32_t lastMotionDetectionMs = 0;
+
+static constexpr uint8_t clusterSensor1Pin = A1;
+static constexpr uint8_t clusterSensor2Pin = A2;
+static constexpr uint8_t clusterSensor3Pin = A3;
+static constexpr uint8_t clusterSensor4Pin = A4;
+static uint8_t clusterSensorStates = 0;
+static uint32_t clusterSensor1DetectionMs = 0;
+static uint32_t clusterSensor2DetectionMs = 0;
+static uint32_t clusterSensor3DetectionMs = 0;
+static uint32_t clusterSensor4DetectionMs = 0;
+
+static constexpr uint8_t rgbLedRedPin = 4;
+static constexpr uint8_t rgbLedBluePin = 5;
+static constexpr uint8_t rgbLedGreenPin = 6;
+static const RGB clusterSensor1Colour(255, 153, 51);
+static const RGB clusterSensor2Colour(128, 255, 0);
+static const RGB clusterSensor3Colour(51, 51, 255);
+static const RGB clusterSensor4Colour(204, 0, 204);
 
 static constexpr uint8_t tiltPin = 2;
 static volatile uint8_t tiltDetected = 0;
@@ -20,17 +44,8 @@ static constexpr uint8_t pingLedPin = 9;
 static constexpr uint8_t minProximityCm = 3;
 static constexpr uint16_t maxProximityCm = 300;
 
-static volatile uint8_t analogButtonPinInput = 255;
-static constexpr uint8_t ledA2Button = 4;
-static constexpr uint8_t ledA3Button = 5;
-static uint8_t ledA2State = 0;
-static uint8_t ledA3State = 0;
-static uint32_t lastA2ButtonPressMs = 0;
-static uint32_t lastA3ButtonPressMs = 0;
-
-void changeButtonState(void) {
-  ledState = !ledState;
-  buttonState = 1;
+void changeMotionDetectedState(void) {
+  motionDetected = digitalRead(pirSensorPin);
 }
 
 void changeTiltState(void) {
@@ -44,13 +59,8 @@ ISR(TIMER1_COMPA_vect)
 }
 
 ISR(PCINT1_vect) {
-  // Interrupt triggers from any input on A2/A3
-  // Meaning we need to filter for the correct one
-  if (digitalRead(A2)) {
-    analogButtonPinInput = A2;
-  } else if (digitalRead(A3)) {
-    analogButtonPinInput = A3;
-  }
+  // Interrupt triggers from any input on A1-A4
+  clusterSensorStates = (PINC & 0b00011110);
 }
 
 void InitializeTimers()
@@ -73,8 +83,8 @@ void InitializeTimers()
 void InitInterrupts() {
   // Enable interrupts on PC port (Analog 0-5)
   PCICR |= 0b00000010;
-  // Mask interrupts for only A2 & A3
-  PCMSK1 |= 0b00001100;
+  // Mask interrupts for A1 - A4
+  PCMSK1 |= 0b00011110;
 }
 
 void ResetPingState()
@@ -94,41 +104,42 @@ void setup()
   InitializeTimers();
   InitInterrupts();
   attachInterrupt(digitalPinToInterrupt(tiltPin), changeTiltState, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(buttonPin), changeButtonState, RISING);
-  pinMode(buttonPin, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(pirSensorPin), changeMotionDetectedState, CHANGE);
   pinMode(tiltPin, INPUT);
   pinMode(piezoPin, OUTPUT);
+  pinMode(clusterSensor1Pin, INPUT);
+  pinMode(clusterSensor2Pin, INPUT);
+  pinMode(clusterSensor3Pin, INPUT);
+  pinMode(clusterSensor4Pin, INPUT);
+  pinMode(rgbLedRedPin, OUTPUT);
+  pinMode(rgbLedBluePin, OUTPUT);
+  pinMode(rgbLedGreenPin, OUTPUT);
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(pingLedPin, OUTPUT);
-  pinMode(A2, INPUT_PULLUP);
-  pinMode(A3, INPUT_PULLUP);
-  pinMode(ledA2Button, OUTPUT);
-  pinMode(ledA3Button, OUTPUT);
   Serial.begin(9600);
   interrupts();
 }
 
 void loop()
 {
-  HandleButtonPress();
+  HandleMotionDetected();
   HandleTiltDetected();
   HandlePing();
-  HandleAnalogButtonPress();
+  HandleClusterSensors();
 }
 
-void HandleButtonPress() {
-  if (buttonState) {
-    if ((millis() - lastButtonPressMs) > debounceMs) {
-      digitalWrite(LED_BUILTIN, ledState);
-      lastButtonPressMs = millis();
-      Serial.println("Changing LED state!");
-      Serial.print("Last button press = ");
-      Serial.print(lastButtonPressMs);
+void HandleMotionDetected() {
+  if (motionDetected) {
+    if ((millis() - lastMotionDetectionMs) > motionTimeoutMs) {
+      digitalWrite(LED_BUILTIN, HIGH);
+      lastMotionDetectionMs = millis();
+      Serial.println("Motion detected!");
+      Serial.print("Last detection time = ");
+      Serial.print(lastMotionDetectionMs);
       Serial.println("ms");
-    } else {
-      Serial.println("Button state changed within debounce period!");
     }
-    buttonState = 0;
+  } else {
+    digitalWrite(LED_BUILTIN, LOW);
   }
 }
 
@@ -173,25 +184,47 @@ void HandleProximity(const unsigned short distanceCm)
   }
 }
 
-void HandleAnalogButtonPress() {
-  if ((millis() - lastA2ButtonPressMs) <= debounceMs) {
-    return;
+void HandleClusterSensors(void)
+{
+  if (clusterSensorStates & 0b00000010) {
+    if ((millis() - clusterSensor1DetectionMs) > motionTimeoutMs) {
+      analogWrite(rgbLedRedPin, clusterSensor1Colour.red);
+      analogWrite(rgbLedGreenPin, clusterSensor1Colour.green);
+      analogWrite(rgbLedBluePin, clusterSensor1Colour.blue);
+      Serial.println("Motion detected on sensor 1");
+      clusterSensor1DetectionMs = millis();
+    }
   }
-  switch (analogButtonPinInput) {
-    case A2:
-    ledA2State = ledA2State ? 0 : 1;
-    digitalWrite(ledA2Button, ledA2State);
-    lastA2ButtonPressMs = millis();
-    Serial.println("A2 Button LED state changed");
-    break;
-    case A3:
-    ledA3State = ledA3State ? 0 : 1;
-    digitalWrite(ledA3Button, ledA3State);
-    lastA3ButtonPressMs = millis();
-    Serial.println("A3 Button LED state changed");
-    break;
+  if (clusterSensorStates & 0b00000100) {
+    if ((millis() - clusterSensor2DetectionMs) > motionTimeoutMs) {
+      analogWrite(rgbLedRedPin, clusterSensor2Colour.red);
+      analogWrite(rgbLedGreenPin, clusterSensor2Colour.green);
+      analogWrite(rgbLedBluePin, clusterSensor2Colour.blue);
+      Serial.println("Motion detected on sensor 2");
+      clusterSensor2DetectionMs = millis();
+    }
   }
-  if (analogButtonPinInput) {
-    analogButtonPinInput = 255;
+  if (clusterSensorStates & 0b00001000) {
+    if ((millis() - clusterSensor3DetectionMs) > motionTimeoutMs) {
+      analogWrite(rgbLedRedPin, clusterSensor3Colour.red);
+      analogWrite(rgbLedGreenPin, clusterSensor3Colour.green);
+      analogWrite(rgbLedBluePin, clusterSensor3Colour.blue);
+      Serial.println("Motion detected on sensor 3");
+      clusterSensor3DetectionMs = millis();
+    }
+  }
+  if (clusterSensorStates & 0b00010000) {
+    if ((millis() - clusterSensor4DetectionMs) > motionTimeoutMs) {
+      analogWrite(rgbLedRedPin, clusterSensor4Colour.red);
+      analogWrite(rgbLedGreenPin, clusterSensor4Colour.green);
+      analogWrite(rgbLedBluePin, clusterSensor4Colour.blue);
+      Serial.println("Motion detected on sensor 4");
+      clusterSensor4DetectionMs = millis();
+    }
+  }
+  if (!clusterSensorStates) {
+    analogWrite(rgbLedRedPin, 0);
+    analogWrite(rgbLedGreenPin, 0);
+    analogWrite(rgbLedBluePin, 0);
   }
 }

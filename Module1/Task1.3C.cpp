@@ -2,20 +2,17 @@
 
 // https://www.arduino.cc/reference/en/language/functions/external-interrupts/attachinterrupt/
 
-static constexpr uint8_t buttonPin = 3;
-static constexpr uint16_t debounceMs = 1000;
-
-static volatile uint8_t ledState = 0;
-static volatile uint8_t buttonState = 0;
-static uint32_t lastButtonPressMs = 0;
+static constexpr uint8_t pirSensorPin = 3;
+static volatile uint8_t motionDetected = 0;
+static constexpr uint16_t motionTimeoutMs = 2000;
+static uint32_t lastMotionDetectionMs = 0;
 
 static constexpr uint8_t tiltPin = 2;
 static volatile uint8_t tiltDetected = 0;
 static constexpr uint8_t piezoPin = 7;
 
-void changeButtonState(void) {
-  ledState = !ledState;
-  buttonState = 1;
+void changeMotionDetectedState(void) {
+  motionDetected = digitalRead(pirSensorPin);
 }
 
 void changeTiltState(void) {
@@ -26,8 +23,8 @@ void setup()
 {
   noInterrupts();
   attachInterrupt(digitalPinToInterrupt(tiltPin), changeTiltState, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(buttonPin), changeButtonState, RISING);
-  pinMode(buttonPin, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(pirSensorPin), changeMotionDetectedState, CHANGE);
+  pinMode(pirSensorPin, INPUT);
   pinMode(tiltPin, INPUT);
   pinMode(piezoPin, OUTPUT);
   pinMode(LED_BUILTIN, OUTPUT);
@@ -37,23 +34,22 @@ void setup()
 
 void loop()
 {
-  HandleButtonPress();
+  HandleMotionDetected();
   HandleTiltDetected();
 }
 
-void HandleButtonPress() {
-  if (buttonState) {
-    if ((millis() - lastButtonPressMs) > debounceMs) {
-      digitalWrite(LED_BUILTIN, ledState);
-      lastButtonPressMs = millis();
-      Serial.println("Changing LED state!");
-      Serial.print("Last button press = ");
-      Serial.print(lastButtonPressMs);
+void HandleMotionDetected() {
+  if (motionDetected) {
+    if ((millis() - lastMotionDetectionMs) > motionTimeoutMs) {
+      digitalWrite(LED_BUILTIN, HIGH);
+      lastMotionDetectionMs = millis();
+      Serial.println("Motion detected!");
+      Serial.print("Last detection time = ");
+      Serial.print(lastMotionDetectionMs);
       Serial.println("ms");
-    } else {
-      Serial.println("Button state changed within debounce period!");
     }
-    buttonState = 0;
+  } else {
+    digitalWrite(LED_BUILTIN, LOW);
   }
 }
 
