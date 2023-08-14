@@ -1,6 +1,7 @@
 {
   "files.associations": {
     "*.ino": "cpp",
+    "*.append": "jsonc",
     "istream": "cpp",
     "*.tcc": "cpp",
     "map": "cpp",
@@ -61,7 +62,8 @@
     "xtree": "cpp",
     "xutility": "cpp",
     "xlocmes": "cpp",
-    "chrono": "cpp"
+    "chrono": "cpp",
+    "cinttypes": "cpp"
   },
   "C_Cpp.errorSquiggles": "Enabled"
 }
