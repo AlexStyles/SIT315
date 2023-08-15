@@ -10,21 +10,8 @@ using namespace std::chrono;
 using namespace std;
 
 void randomVector(int vector[], int size) {
-  const int blockSize = (size / omp_get_max_threads());
-#pragma omp parallel
-  {
-    int threadId = omp_get_thread_num();
-    const uint32_t blockStart = threadId * blockSize;
-    const uint32_t blockEnd = blockStart + blockSize;
-    std::random_device device;
-    std::mt19937 rng(device());
-    std::uniform_int_distribution<std::mt19937::result_type> distribution(0, 100);
-#pragma omp for
-    for (int i = blockStart; i < blockEnd; i++) {
-      vector[i] = distribution(rng);
-    }
-  }
-  for (int i = blockSize * omp_get_max_threads(); i < size; ++i) {
+  #pragma omp parallel for default(none) shared(vector, size)
+  for (int i = 0; i < size; ++i) {
     vector[i] = rand() % 100;
   }
 }
@@ -44,20 +31,10 @@ int main() {
   v3 = (int *)malloc(size * sizeof(int *));
 
   randomVector(v1, size);
-
   randomVector(v2, size);
 
-  #pragma omp parallel
-  {
-    const int threadId = omp_get_thread_num();
-    const uint32_t blockStart = threadId * blockSize;
-    const uint32_t blockEnd = blockStart + blockSize;
-    #pragma omp for
-    for (int i = blockStart; i < blockEnd; ++i) {
-      v3[i] = v1[i] + v2[i];
-    }
-  }
-  for (int i = blockSize * omp_get_max_threads(); i < size; ++i) {
+  #pragma omp parallel for
+  for (int i = 0; i < size; ++i) {
     v3[i] = v1[i] + v2[i];
   }
 
