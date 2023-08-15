@@ -9,27 +9,6 @@
 using namespace std::chrono;
 using namespace std;
 
-// void randomVector(int vector[], int size) {
-//   const int blockSize = (size / omp_get_max_threads());
-// #pragma omp parallel default(none) shared(vector, blockSize)
-//   {
-//     std::random_device device;
-//     std::mt19937 rng(device());
-//     std::uniform_int_distribution<std::mt19937::result_type> distribution(0, 100);
-//     int threadId = omp_get_thread_num();
-//     uint32_t blockStart = threadId * blockSize;
-//     uint32_t blockEnd = blockStart + blockSize;
-// #pragma omp for private(blockStart, blockEnd, distribution, rng)
-//     for (int i = blockStart; i < blockEnd; i++) {
-//       vector[i] = distribution(rng);
-//       std::printf("Set vector[%d] to %d\n", i, vector[i]);
-//     }
-//   }
-//   for (int i = blockSize * omp_get_max_threads(); i < size; ++i) {
-//     vector[i] = rand() % 100;
-//   }
-// }
-
 void randomVector(int vector[], int size) {
   #pragma omp parallel for default(none) shared(vector, size)
   for (int i = 0; i < size; ++i) {
