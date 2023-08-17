@@ -101,9 +101,6 @@ int main(){
 
     auto stop = high_resolution_clock::now();
 
-    for (int i = 0; i < 5; ++i)
-      std::printf("v3 = %d, v2 = %d, v1 = %d\n", v3[i], v2[i], v1[i]);
-
     // Determine the runtime of the program by subtracting the finish time by the start time
     auto duration = duration_cast<microseconds>(stop - start);
     cout << duration.count() << endl;

@@ -45,6 +45,11 @@ int main() {
   uint64_t totalCritical = 0;
   uint64_t blockSum = 0;
 
+  // #pragma omp parallel for default(none) shared(size,v1,v2,v3)
+  // for (int i = 0; i < size; ++i) {
+  //   v3[i] = v1[i] + v2[i];
+  // }
+
   #pragma omp parallel default(none) private(blockSum) shared(totalAtomic, totalReduction, totalCritical, v1, v2, v3, size)
   {
     #pragma omp for private(blockSum) reduction(+ : totalReduction)
