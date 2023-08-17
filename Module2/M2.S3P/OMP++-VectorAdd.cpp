@@ -9,16 +9,24 @@
 using namespace std::chrono;
 using namespace std;
 
-void randomVector(int vector[], int size) {
-  #pragma omp parallel for default(none) shared(vector, size)
-  for (int i = 0; i < size; ++i) {
-    vector[i] = rand() % 100;
+void randomVector(int vector[], unsigned long size) {
+  #pragma omp parallel default(none) shared(vector, size)
+  {
+    // https://stackoverflow.com/questions/21237905/how-do-i-generate-thread-safe-uniform-random-numbers
+    std::random_device device;
+    static thread_local std::mt19937 rng(device());
+    std::uniform_int_distribution<std::mt19937::result_type> distribution(0, 100);
+    #pragma omp for
+    for (int i = 0; i < size; ++i) {
+      // rand() is not re-entrant, meaning that threads will block others from accessing rand() Hence the 23 seconds runtimes
+      // rand_r() was producing duplicate results
+      vector[i] = distribution(rng);
+    }
   }
 }
 
 int main() {
-  unsigned long size = 100000000;
-
+  constexpr unsigned long size = 100000000;
   srand(time(0));
 
   int *v1, *v2, *v3;
@@ -30,16 +38,16 @@ int main() {
   v3 = (int *)malloc(size * sizeof(int *));
 
   randomVector(v1, size);
-  randomVector(v2, size);
+  randomVector(v2, size); 
 
   uint64_t totalAtomic = 0;
   uint64_t totalReduction = 0;
   uint64_t totalCritical = 0;
   uint64_t blockSum = 0;
 
-  #pragma omp parallel default(none) private(blockSum) shared(size, v1, v2, v3, totalAtomic, totalReduction, totalCritical)
+  #pragma omp parallel default(none) private(blockSum) shared(totalAtomic, totalReduction, totalCritical, v1, v2, v3, size)
   {
-    #pragma omp for private(blockSum) reduction(+ : totalReduction)/*  schedule(static,1) */
+    #pragma omp for private(blockSum) reduction(+ : totalReduction)
     for (int i = 0; i < size; ++i) {
       v3[i] = v1[i] + v2[i];
       totalReduction += v3[i];
