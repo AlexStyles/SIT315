@@ -10,13 +10,13 @@ using namespace std::chrono;
 using namespace std;
 
 void randomVector(int vector[], unsigned long size) {
-  #pragma omp parallel default(none) shared(vector, size)
+  #pragma omp parallel default(none) shared(vector) firstprivate(size)
   {
     // https://stackoverflow.com/questions/21237905/how-do-i-generate-thread-safe-uniform-random-numbers
     std::random_device device;
     static thread_local std::mt19937 rng(device());
     std::uniform_int_distribution<std::mt19937::result_type> distribution(0, 100);
-    #pragma omp for
+    #pragma omp for schedule(guided,8388608)
     for (int i = 0; i < size; ++i) {
       // rand() is not re-entrant, meaning that threads will block others from accessing rand() Hence the 23 seconds runtimes
       // rand_r() was producing duplicate results
@@ -50,9 +50,13 @@ int main() {
   //   v3[i] = v1[i] + v2[i];
   // }
 
-  #pragma omp parallel default(none) private(blockSum) shared(totalAtomic, totalReduction, totalCritical, v1, v2, v3, size)
+  #pragma omp parallel \
+    default(none) \
+    private(blockSum) \
+    firstprivate(size) \
+    shared(totalAtomic, totalReduction, totalCritical, v1, v2, v3)
   {
-    #pragma omp for private(blockSum) reduction(+ : totalReduction)
+    #pragma omp for private(blockSum) reduction(+ : totalReduction) schedule(guided,8388608)
     for (int i = 0; i < size; ++i) {
       v3[i] = v1[i] + v2[i];
       totalReduction += v3[i];
@@ -74,12 +78,11 @@ int main() {
     testTotal += v3[i];
   }
 
-  cout << "Time taken by function: " << duration.count() << " microseconds"
-       << endl;
-  std::cout << "Total (Atomic) = " << totalAtomic << "\n";
-  std::cout << "Total (Reduction) = " << totalReduction << "\n";
-  std::cout << "Total (Critical) = " << totalReduction << "\n";
-  std::cout << "Total (test) = " << testTotal << "\n";
+  cout << duration.count() << endl;
+  // std::cout << "Total (Atomic) = " << totalAtomic << "\n";
+  // std::cout << "Total (Reduction) = " << totalReduction << "\n";
+  // std::cout << "Total (Critical) = " << totalReduction << "\n";
+  // std::cout << "Total (test) = " << testTotal << "\n";
 
   return 0;
 }

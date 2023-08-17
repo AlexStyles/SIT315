@@ -10,11 +10,13 @@ using namespace std::chrono;
 using namespace std;
 
 void randomVector(int vector[], int size) {
-  #pragma omp parallel
+  #pragma omp parallel default(none) shared(vector) firstprivate(size)
   {
+    std::printf("Size value in thread (firstprivate) = %d\n", size);
     std::random_device device;
     static thread_local std::mt19937 rng(device());
     std::uniform_int_distribution<std::mt19937::result_type> distribution(0, 100);
+    #pragma omp for
     for (int i = 0; i < size; ++i) {
       // rand() is not re-entrant, meaning that threads will block others from accessing rand() Hence the 23 seconds runtimes
       // rand_r() was producing duplicate results
