@@ -1,10 +1,17 @@
 #include <chrono>
 #include <cstdint>
 #include <iostream>
+#include <queue>
 #include <random>
 
 #include <pthread.h>
+#include <unistd.h>
 
+// Function declarations
+void* ThreadLoop(void*);
+void* TestFunction(void*);
+
+// Typedefs & Structs
 typedef struct Matrix {
   Matrix() = default;
   Matrix(const uint8_t matrixSize) : size(matrixSize) {
@@ -33,6 +40,55 @@ typedef struct Matrix {
   int** data;
 } Matrix;
 
+typedef struct ThreadPool {
+  ThreadPool(const unsigned int numThreads) : threads(numThreads, 0) {
+    InitPool();
+  }
+  ~ThreadPool() {
+    std::printf("ThreadPool destructor joining threads\n");
+    for (std::size_t i = 0; i < threads.size(); ++i) {
+      pthread_join(threads[i], NULL);
+    }
+    std::printf("ThreadPool destructor finished joining threads\n");
+  }
+
+  void InitPool () {
+    for (std::size_t i = 0; i < threads.size(); ++i) {
+      std::printf("Creating thread %lu\n", i);
+      pthread_create(&threads[i], NULL, &ThreadLoop, NULL);
+    }
+  }
+  std::vector<pthread_t> threads;
+} ThreadPool;
+
+// Global variables
+// ThreadPool gThreadPool(12);
+pthread_cond_t queueConditional;
+pthread_mutex_t queueMutex;
+std::queue<void*(*)(void*)> taskQueue;
+
+void* TestFunction(void* args) {
+  std::printf("Hello from thread %lu\n", pthread_self());
+  sleep(1);
+  pthread_cond_signal(&queueConditional);
+  return NULL;
+}
+
+void* ThreadLoop(void* args) {
+  while(true) {
+    pthread_mutex_lock(&queueMutex);
+    while (taskQueue.empty()) {
+      std::printf("Thread %lu: Waiting for task...\n", pthread_self());
+      pthread_cond_wait(&queueConditional, &queueMutex);
+    }
+    auto task = taskQueue.front();
+    taskQueue.pop();
+    pthread_mutex_unlock(&queueMutex);
+    task(NULL);
+  }
+  pthread_exit(NULL);
+}
+
 void GenerateMatrixData(Matrix& inMatrix) {
   std::random_device device;
   std::mt19937 rng(device());
@@ -53,9 +109,12 @@ void MultiplyMatrices(Matrix& A, Matrix& B, Matrix& C, const uint8_t matrixSize)
   if (!matrixSize)
     return;
 
+  // i: Row calculation
   for (uint8_t i = 0; i < matrixSize; ++i) {
+    // j: C element selection
     for (uint8_t j = 0; j < matrixSize; ++j) {
       for (uint8_t k = 0; k < matrixSize; ++k) {
+        // k: A & B element selection
         C.data[i][j] += A.data[i][k] * B.data[k][j];
       }
     }
@@ -74,6 +133,10 @@ int main() {
   auto stop = std::chrono::high_resolution_clock::now();
 
   auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+  ThreadPool aThreadPool(12);
+  for (int i = 0; i < 100; ++i) {
+    taskQueue.push(&TestFunction);
+  }
   std::printf("duration = %ld microseconds\n", duration.count());
   // A.Print();
   // std::printf("-----------\n");
