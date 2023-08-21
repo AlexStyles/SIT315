@@ -5,11 +5,21 @@
 #include <random>
 
 #include <pthread.h>
+#include <atomic>
 #include <unistd.h>
+
+// https://stackoverflow.com/questions/7859754/can-i-keep-threads-alive-and-give-them-other-workloads
 
 // Function declarations
 void* ThreadLoop(void*);
 void* TestFunction(void*);
+
+// Global variables
+std::queue<void*(*)(void*)> taskQueue;
+pthread_cond_t queueConditional;
+pthread_mutex_t queueMutex;
+std::atomic_bool programCompleted(false);
+std::atomic_int(0);
 
 // Typedefs & Structs
 typedef struct Matrix {
@@ -46,6 +56,10 @@ typedef struct ThreadPool {
   }
   ~ThreadPool() {
     std::printf("ThreadPool destructor joining threads\n");
+    while (taskQueue.size()) {
+      //Wait 
+    }
+    programCompleted = true;
     for (std::size_t i = 0; i < threads.size(); ++i) {
       pthread_join(threads[i], NULL);
     }
@@ -61,24 +75,18 @@ typedef struct ThreadPool {
   std::vector<pthread_t> threads;
 } ThreadPool;
 
-// Global variables
-// ThreadPool gThreadPool(12);
-pthread_cond_t queueConditional;
-pthread_mutex_t queueMutex;
-std::queue<void*(*)(void*)> taskQueue;
-
 void* TestFunction(void* args) {
   std::printf("Hello from thread %lu\n", pthread_self());
-  sleep(1);
+  usleep(500000);
   pthread_cond_signal(&queueConditional);
   return NULL;
 }
 
 void* ThreadLoop(void* args) {
-  while(true) {
+  while(!programCompleted) {
     pthread_mutex_lock(&queueMutex);
-    while (taskQueue.empty()) {
-      std::printf("Thread %lu: Waiting for task...\n", pthread_self());
+    while (taskQueue.empty() && !programCompleted) {
+      // std::printf("Thread %lu: Waiting for task...\n", pthread_self());
       pthread_cond_wait(&queueConditional, &queueMutex);
     }
     auto task = taskQueue.front();
@@ -132,11 +140,17 @@ int main() {
   MultiplyMatrices(A, B, C, matrixSize);
   auto stop = std::chrono::high_resolution_clock::now();
 
-  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-  ThreadPool aThreadPool(12);
-  for (int i = 0; i < 100; ++i) {
-    taskQueue.push(&TestFunction);
+  {
+    ThreadPool aThreadPool(12);
+    for (int i = 0; i < 100; ++i) {
+      taskQueue.push(&TestFunction);
+    }
+    while (taskQueue.size()) {
+
+    }
   }
+  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+
   std::printf("duration = %ld microseconds\n", duration.count());
   // A.Print();
   // std::printf("-----------\n");
