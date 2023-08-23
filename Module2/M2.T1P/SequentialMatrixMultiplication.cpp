@@ -14,12 +14,51 @@
 void* ThreadLoop(void*);
 void* TestFunction(void*);
 
+typedef void*(*Task)(void*);
+typedef std::queue<Task> Queue;
+
+typedef struct TaskQueue {
+  TaskQueue() {
+    pthread_cond_init(&fQueueConditional, NULL);
+    pthread_mutex_init(&fQueueMutex, NULL);
+  };
+
+  ~TaskQueue() {
+    pthread_cond_destroy(&fQueueConditional);
+    pthread_mutex_destroy(&fQueueMutex);
+  };
+
+  void SetTask(Task inTask) {
+    pthread_mutex_lock(&fQueueMutex);
+    fQueue.push(inTask);
+    pthread_mutex_unlock(&fQueueMutex);
+  }
+
+  Task GetTask() {
+    if (fQueue.size() > 0) {
+      Task aReturnTask = fQueue.front();
+      fQueue.pop();
+      return aReturnTask;
+    }
+    return NULL;
+  }
+
+  void FinaliseTasks() {
+    pthread_cond_broadcast(&fQueueConditional);
+  }
+
+  const inline std::size_t Size() {
+    return fQueue.size();
+  }
+  pthread_cond_t fQueueConditional;
+  pthread_mutex_t fQueueMutex;
+  private:
+  Queue fQueue;
+} TaskQueue;
+
 // Global variables
-std::queue<void*(*)(void*)> taskQueue;
-pthread_cond_t queueConditional;
-pthread_mutex_t queueMutex;
 std::atomic_bool programCompleted(false);
-std::atomic_int(0);
+std::atomic_int tasksCompleted(0);
 
 // Typedefs & Structs
 typedef struct Matrix {
@@ -51,50 +90,68 @@ typedef struct Matrix {
 } Matrix;
 
 typedef struct ThreadPool {
-  ThreadPool(const unsigned int numThreads) : threads(numThreads, 0) {
-    InitPool();
+  ThreadPool(const unsigned int numThreads, TaskQueue& inTaskQueue) : fThreads(numThreads, 0), fTaskQueue(inTaskQueue) {
   }
   ~ThreadPool() {
-    std::printf("ThreadPool destructor joining threads\n");
-    while (taskQueue.size()) {
+    while (fTaskQueue.Size()) {
+      std::printf("Tasks still in queue\n");
       //Wait 
     }
     programCompleted = true;
-    for (std::size_t i = 0; i < threads.size(); ++i) {
-      pthread_join(threads[i], NULL);
+    fTaskQueue.FinaliseTasks();
+    for (std::size_t i = 0; i < fThreads.size(); ++i) {
+      pthread_join(fThreads[i], NULL);
     }
     std::printf("ThreadPool destructor finished joining threads\n");
   }
 
+  void Run() {
+    InitPool();
+  }
+
   void InitPool () {
-    for (std::size_t i = 0; i < threads.size(); ++i) {
-      std::printf("Creating thread %lu\n", i);
-      pthread_create(&threads[i], NULL, &ThreadLoop, NULL);
+    for (std::size_t i = 0; i < fThreads.size(); ++i) {
+      pthread_create(&fThreads[i], NULL, &ThreadLoop, &fTaskQueue);
     }
   }
-  std::vector<pthread_t> threads;
+  std::vector<pthread_t> fThreads;
+  TaskQueue& fTaskQueue;
 } ThreadPool;
 
 void* TestFunction(void* args) {
   std::printf("Hello from thread %lu\n", pthread_self());
-  usleep(500000);
-  pthread_cond_signal(&queueConditional);
+  pthread_cond_t* aConditionVar = static_cast<pthread_cond_t*>(args);
+  tasksCompleted++;
+  // usleep(500000);
+  const int aSignalRetCode = pthread_cond_signal(aConditionVar);
+  if (aSignalRetCode) {
+    std::printf("Error: Conditional signal returned %d\n", aSignalRetCode);
+  }
   return NULL;
 }
 
 void* ThreadLoop(void* args) {
-  while(!programCompleted) {
-    pthread_mutex_lock(&queueMutex);
-    while (taskQueue.empty() && !programCompleted) {
-      // std::printf("Thread %lu: Waiting for task...\n", pthread_self());
-      pthread_cond_wait(&queueConditional, &queueMutex);
+  TaskQueue* aTaskQueue = static_cast<TaskQueue*>(args);
+  while (!programCompleted) {
+    int aMutexRetCode = pthread_mutex_lock(&aTaskQueue->fQueueMutex);
+    while (!aTaskQueue->Size() && !programCompleted) {
+      pthread_cond_wait(&aTaskQueue->fQueueConditional, &aTaskQueue->fQueueMutex);
     }
-    auto task = taskQueue.front();
-    taskQueue.pop();
-    pthread_mutex_unlock(&queueMutex);
-    task(NULL);
+    Task aTask = aTaskQueue->GetTask();
+    pthread_mutex_unlock(&aTaskQueue->fQueueMutex);
+    if (aTask)
+      aTask(&aTaskQueue->fQueueConditional);
   }
   pthread_exit(NULL);
+}
+
+void RunTestTasks() {
+  TaskQueue aTaskQueue;
+  for (int i = 0; i < 10000; ++i) {
+    aTaskQueue.SetTask(&TestFunction);
+  }
+  ThreadPool aThreadPool(12, aTaskQueue);
+  aThreadPool.Run();
 }
 
 void GenerateMatrixData(Matrix& inMatrix) {
@@ -138,20 +195,13 @@ int main() {
 
   auto start = std::chrono::high_resolution_clock::now();
   MultiplyMatrices(A, B, C, matrixSize);
+
+  RunTestTasks();
+
   auto stop = std::chrono::high_resolution_clock::now();
-
-  {
-    ThreadPool aThreadPool(12);
-    for (int i = 0; i < 100; ++i) {
-      taskQueue.push(&TestFunction);
-    }
-    while (taskQueue.size()) {
-
-    }
-  }
   auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
 
-  std::printf("duration = %ld microseconds\n", duration.count());
+  std::printf("duration = %ld microseconds\nTasks completed = %d\n", duration.count(), tasksCompleted.load());
   // A.Print();
   // std::printf("-----------\n");
   // B.Print();
