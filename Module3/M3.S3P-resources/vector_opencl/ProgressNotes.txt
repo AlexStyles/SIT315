@@ -1,0 +1,7 @@
+Installed Intel ICD package
+Install clinfo package
+Removed MESA ICD package
+Installed proprietary NVIDIA drivers
+
+OpenCL Intel ICD can identify platform and devices for the CPU but not the dedicated NVIDIA GPU
+
