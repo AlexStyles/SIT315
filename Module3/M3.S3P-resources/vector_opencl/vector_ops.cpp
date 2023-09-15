@@ -10,7 +10,8 @@ int *v;
 //ToDo: Add comment (what is the purpose of this variable)
 cl_mem bufV;
 
-//ToDo: Add comment (what is the purpose of this variable)
+// device_id is an OpenCL identifier for a compute device (e.g. CPU, GPU)
+// It is used to 
 cl_device_id device_id;
 //ToDo: Add comment (what is the purpose of this variable)
 cl_context context;
@@ -130,7 +131,11 @@ void free_memory()
 
 void copy_kernel_args()
 {
-    //ToDo: Add comment (what is the purpose of clSetKernelArg function? What are its arguments?)
+    // clSetKernelArg is used to set a value for a kernel (i.e. function) parameter at a specific index.
+    // The first argument to clSetKernelArg is the kernel
+    // The second argument is the specific index of the kernel parameter
+    // The third argument is the data size of the parameter
+    // The fourth argument is a generic pointer cast to the data used by the kernel parameter
     clSetKernelArg(kernel, 0, sizeof(int), (void *)&SZ);
     clSetKernelArg(kernel, 1, sizeof(cl_mem), (void *)&bufV);
 
@@ -157,7 +162,9 @@ void setup_openCL_device_context_queue_kernel(char *filename, char *kernelname)
     device_id = create_device();
     cl_int err;
 
-    //ToDo: Add comment (what is the purpose of clCreateBuffer function?)
+    // clCreateContext creates an OpenCL context using one or more devices found within a platform
+    // The platform in this case being the first found GPU
+    // In this instance we are creating a context using a single device ID
     context = clCreateContext(NULL, 1, &device_id, NULL, NULL, &err);
     if (err < 0)
     {
@@ -167,7 +174,7 @@ void setup_openCL_device_context_queue_kernel(char *filename, char *kernelname)
 
     program = build_program(context, device_id, filename);
 
-    //ToDo: Add comment (what is the purpose of clCreateCommandQueueWithProperties function?)
+    // clCreateCommandQueueWithProperties simply creates a Command Queue within an existing context for a specific device
     queue = clCreateCommandQueueWithProperties(context, device_id, 0, &err);
     if (err < 0)
     {
