@@ -50,9 +50,12 @@ void GenerateMatrices(Matrix& A, Matrix& B) {
 void MultiplyMatrices(const Matrix& A, const Matrix& B, Matrix& C, const uint16_t matrixSize, const uint16_t inMaxThreads = 0) {
   if (!matrixSize)
     return;
-  #pragma omp parallel for
+
+  // i: Row selector
   for (uint16_t i = 0; i < matrixSize; ++i) {
+    // j: Column selector
     for (uint16_t j = 0; j < matrixSize; ++j) {
+      // k: Row/Column element selector
       for (uint16_t k = 0; k < matrixSize; ++k) {
         C.data[i][j] += A.data[i][k] * B.data[k][j];
       }

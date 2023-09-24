@@ -209,21 +209,10 @@ void MultiplyMatrices(const Matrix& A, const Matrix& B, Matrix& C, const uint16_
 
   ThreadPool aThreadPool(maxThreads, aTaskQueue);
   aThreadPool.Run();
-
-  // i: Row selector
-  // for (uint16_t i = 0; i < matrixSize; ++i) {
-  //   // j: Column selector
-  //   for (uint16_t j = 0; j < matrixSize; ++j) {
-  //     for (uint16_t k = 0; k < matrixSize; ++k) {
-  //       // k: Row/Column element selector
-  //       C.data[i][j] += A.data[i][k] * B.data[k][j];
-  //     }
-  //   }
-  // }
 }
 
 int main() {
-  static constexpr uint16_t matrixSize = 24;
+  static constexpr uint16_t matrixSize = 5000;
   Matrix A(matrixSize);
   Matrix B(matrixSize);
   Matrix C(matrixSize);
@@ -234,7 +223,7 @@ int main() {
   auto stop = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
 
-  std::printf("duration = %ld microseconds\nTasks completed = %d\n", duration.count(), gTasksCompleted.load());
+  std::printf("duration = %ld microseconds\n", duration.count());
   // A.Print();
   // std::printf("-----------\n");
   // B.Print();

@@ -7,35 +7,47 @@
 int SZ = 8;
 int *v;
 
-//ToDo: Add comment (what is the purpose of this variable)
+// bufV is the memory buffer used by the OpenCL runtime for the kernel programs
+// In this program the data in vector v is copied into bufV as part of the initialisation in setup_kernel_memory()
 cl_mem bufV;
 
 // device_id is an OpenCL identifier for a compute device (e.g. CPU, GPU)
-// It is used to 
 cl_device_id device_id;
-//ToDo: Add comment (what is the purpose of this variable)
+
+// context is an OpenCL identifier for the selected context on the host (GPU > CPU)
 cl_context context;
-//ToDo: Add comment (what is the purpose of this variable)
+
+// program is an object containing the compiled OpenCL C program, which is vector_ops.cl in our case.
 cl_program program;
-//ToDo: Add comment (what is the purpose of this variable)
+
+// kernel is a function (i.e. kernel) which is executed by the OpenCL runtime.
+// kernel object contains a specific kernel function (e.g. square_magnitude) declared in the vector_ops.cl program
+// along with the parameters for the kernel function.
 cl_kernel kernel;
-//ToDo: Add comment (what is the purpose of this variable)
+
+// queue is an OpenCL command queue object. queue is used for sending operations to a host or device within
+// a context. Operations in a queue are executed sequentially.
 cl_command_queue queue;
 cl_event event = NULL;
 
 int err;
 
-//ToDo: Add comment (what is the purpose of this function)
+// create_device() returns an OpenGL device 
 cl_device_id create_device();
+
 //ToDo: Add comment (what is the purpose of this function)
 void setup_openCL_device_context_queue_kernel(char *filename, char *kernelname);
-//ToDo: Add comment (what is the purpose of this function)
+
+// build_program reads the kernel code (vector_ops.cl), compiles it and returns an executable program
 cl_program build_program(cl_context ctx, cl_device_id dev, const char *filename);
+
 //ToDo: Add comment (what is the purpose of this function)
 void setup_kernel_memory();
+
 //ToDo: Add comment (what is the purpose of this function)
 void copy_kernel_args();
-//ToDo: Add comment (what is the purpose of this function)
+
+// free_memory() is responsible for releasing resources once the program has completed
 void free_memory();
 
 void init(int *&A, int size);
@@ -49,7 +61,7 @@ int main(int argc, char **argv)
     init(v, SZ);
 
 
-    //ToDo: Add comment (what is the purpose of this variable)
+    // global is an array of size 1, containing the number of work-items to be executed by OpenCL
     size_t global[1] = {(size_t)SZ};
 
     //initial vector
@@ -61,6 +73,10 @@ int main(int argc, char **argv)
     copy_kernel_args();
 
     //ToDo: Add comment (what is the purpose of this function? What are its arguments? Check the documenation to find more https://www.khronos.org/registry/OpenCL/sdk/2.2/docs/man/html/clEnqueueNDRangeKernel.html)
+    // clEnqueueNDRangeKernel pushes a kernel onto the command queue
+    // Its arguments are:
+    // cl_command_queue object, cl_kernel object,
+    // cl_uint work_dim - the number of dimensions used 
     clEnqueueNDRangeKernel(queue, kernel, 1, NULL, global, NULL, 0, NULL, &event);
     clWaitForEvents(1, &event);
 
@@ -149,8 +165,21 @@ void copy_kernel_args()
 
 void setup_kernel_memory()
 {
-    //ToDo: Add comment (what is the purpose of clCreateBuffer function? What are its arguments?) 
-    //The second parameter of the clCreateBuffer is cl_mem_flags flags. Check the OpenCL documention to find out what is it's purpose and read the List of supported memory flag values 
+    // The clCreateBuffer function creates a buffer object to be used by the OpenCL runtime
+    // The parameters are a context (context), memory access flags (flags), buffer size to allocate (size),
+    // optional pointer to an existing buffer already allocated (host_ptr), and a return error code
+    // The second parameter of the clCreateBuffer is cl_mem_flags flags. Check the OpenCL documention to find out what is it's purpose and read the List of supported memory flag values
+    // Supported memory flags:
+    // CL_MEM_READ_WRITE (Read and write permission, default setting)
+    // CL_MEM_WRITE_ONLY (Write only permission, reading results in undefined behaviour)
+    // CL_MEM_READ_ONLY (Read only permission, writing results in undefined behaviour)
+    // R/W, WO, RO are mutually exclusive options
+    // CL_MEM_USE_HOST_PTR (If host_ptr is not null, tell OpenCL runtime to use memory at host_ptr)
+    // CL_MEM_ALLOC_HOST_PTR (Allocate memory to host_ptr using host memory)
+    // CL_MEM_COPY_HOST_PTR (If host_ptr is not null, copy the buffer at host_ptr and return a new pointer)
+    // CL_MEM_HOST_WRITE_ONLY (Tell the host that it can only write to the memory object)
+    // CL_MEM_HOST_READ_ONLY (Tell host that the memory object is read only)
+    // CL_MEM_HOST_NO_ACCESS (Tell host to not read or write the memory object)
     bufV = clCreateBuffer(context, CL_MEM_READ_WRITE, SZ * sizeof(int), NULL, NULL);
 
     // Copy matrices to the GPU
@@ -175,6 +204,7 @@ void setup_openCL_device_context_queue_kernel(char *filename, char *kernelname)
     program = build_program(context, device_id, filename);
 
     // clCreateCommandQueueWithProperties simply creates a Command Queue within an existing context for a specific device
+    // using an optional set of properties
     queue = clCreateCommandQueueWithProperties(context, device_id, 0, &err);
     if (err < 0)
     {
@@ -215,7 +245,14 @@ cl_program build_program(cl_context ctx, cl_device_id dev, const char *filename)
     fread(program_buffer, sizeof(char), program_size, program_handle);
     fclose(program_handle);
 
-    //ToDo: Add comment (what is the purpose of clCreateProgramWithSource function? What are its arguments?)
+    // clCreateProgramWithSource(context, count, strings, lengths, errcode_ret);
+    // clCreateProgramWithSource creates and returns a cl_program object for a context.
+    // The function parameters are: 
+    // context: OpenGL context,
+    // count: the number of strings (null terminated),
+    // strings: Array of strings containing source code
+    // lengths: An array of each string length
+    // errcode_ret: and a return error code
     program = clCreateProgramWithSource(ctx, 1,
                                         (const char **)&program_buffer, &program_size, &err);
     if (err < 0)
