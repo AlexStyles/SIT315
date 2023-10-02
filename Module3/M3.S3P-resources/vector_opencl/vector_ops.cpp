@@ -35,16 +35,18 @@ int err;
 // create_device() returns an OpenGL device 
 cl_device_id create_device();
 
-//ToDo: Add comment (what is the purpose of this function)
+// The purpose of this function is to configure and initialise an OpenCL Context, Queue and Kernel object
 void setup_openCL_device_context_queue_kernel(char *filename, char *kernelname);
 
 // build_program reads the kernel code (vector_ops.cl), compiles it and returns an executable program
 cl_program build_program(cl_context ctx, cl_device_id dev, const char *filename);
 
-//ToDo: Add comment (what is the purpose of this function)
+// This function allocates memory (i.e. creates a buffer) before copying
+// the initialised vector data into an OpenCL buffer (bufV)
 void setup_kernel_memory();
 
-//ToDo: Add comment (what is the purpose of this function)
+// copy_kernel_args() configures the kernel arguments by parameter index
+// These being the buffer size, followed by the buffer
 void copy_kernel_args();
 
 // free_memory() is responsible for releasing resources once the program has completed
@@ -72,15 +74,21 @@ int main(int argc, char **argv)
     setup_kernel_memory();
     copy_kernel_args();
 
-    //ToDo: Add comment (what is the purpose of this function? What are its arguments? Check the documenation to find more https://www.khronos.org/registry/OpenCL/sdk/2.2/docs/man/html/clEnqueueNDRangeKernel.html)
-    // clEnqueueNDRangeKernel pushes a kernel onto the command queue
+    // clEnqueueNDRangeKernel pushes a kernel onto the command queue to be executed by a device
     // Its arguments are:
-    // cl_command_queue object, cl_kernel object,
-    // cl_uint work_dim - the number of dimensions used 
+    // cl_command_queue command_queue (queue to push the kernel onto)
+    // cl_kernel kernel (kernel containing the program instructions and parameters)
+    // cl_uint work_dim - the number of dimensions in the global work group
+    // const size_t *global_work_offset - offset/start buffer index
+    // const size_t *global_work_size - size of
+    // const size_t *local_work_size
+    // cl_uint num_events_in_wait_list
+    // const cl_event *event_wait_list
+    // cl_event *event
     clEnqueueNDRangeKernel(queue, kernel, 1, NULL, global, NULL, 0, NULL, &event);
     clWaitForEvents(1, &event);
 
-    //ToDo: Add comment (what is the purpose of this function? What are its arguments?)
+    // todo
     clEnqueueReadBuffer(queue, bufV, CL_TRUE, 0, SZ * sizeof(int), &v[0], 0, NULL, NULL);
 
     //result vector
